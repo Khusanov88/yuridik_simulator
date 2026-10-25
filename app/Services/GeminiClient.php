@@ -4,8 +4,10 @@ namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class GeminiClient
@@ -52,7 +54,9 @@ class GeminiClient
         foreach ($models as $model) {
             try {
                 $response = $this->request()->timeout(25)->post("{$model}:generateContent", $payload);
-            } catch (ConnectionException) {
+            } catch (ConnectionException $exception) {
+                Log::warning('Gemini request could not connect.', ['model' => $model, 'error' => $exception->getMessage()]);
+
                 continue;
             }
 
@@ -61,9 +65,38 @@ class GeminiClient
             if (is_string($reply) && trim($reply) !== '') {
                 return trim(str_replace('*', '', $reply));
             }
+
+            Log::warning('Gemini returned no text.', ['model' => $model, 'status' => $response->status(), 'error' => $this->errorMessage($response)]);
         }
 
         return null;
+    }
+
+    /**
+     * Explain why Gemini cannot be used right now, or null when it is reachable with the configured key.
+     */
+    public function diagnose(): ?string
+    {
+        if ((string) config('services.gemini.key') === '') {
+            return "GEMINI_API_KEY bo'sh. Uni .env faylga yozing va `php artisan config:clear` ni ishga tushiring.";
+        }
+
+        try {
+            $response = $this->request()->timeout(15)->get('models');
+        } catch (ConnectionException $exception) {
+            return "Gemini serveriga ulanib bo'lmadi: ".$exception->getMessage();
+        }
+
+        if ($response->failed()) {
+            return "Gemini so'rovni rad etdi (HTTP {$response->status()}): ".$this->errorMessage($response);
+        }
+
+        return null;
+    }
+
+    private function errorMessage(Response $response): string
+    {
+        return (string) ($response->json('error.message') ?? $response->json('promptFeedback.blockReason') ?? Str::limit($response->body(), 300));
     }
 
     /**
@@ -81,8 +114,14 @@ class GeminiClient
 
         try {
             $response = $this->request()->timeout(8)->get('models');
-        } catch (ConnectionException) {
+        } catch (ConnectionException $exception) {
+            Log::warning('Gemini model list could not connect.', ['error' => $exception->getMessage()]);
+
             return self::FALLBACK_MODELS;
+        }
+
+        if ($response->failed()) {
+            Log::warning('Gemini model list request failed.', ['status' => $response->status(), 'error' => $this->errorMessage($response)]);
         }
 
         $models = collect($response->json('models') ?? [])
