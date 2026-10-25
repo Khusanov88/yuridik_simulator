@@ -6,8 +6,23 @@ it('renders the simulator with its assets and the CSRF token', function () {
     $response->assertOk()
         ->assertSee('<meta name="csrf-token" content="', false)
         ->assertSee(asset('css/simulator.css'), false)
+        ->assertSee(asset('js/api.js'), false)
         ->assertSee(asset('js/simulator.js'), false)
-        ->assertSee('Oʻzbekiston huquqiy maʼlumotlari boʻyicha AI-yordamchi');
+        ->assertSee('Qanday huquqiy yordam kerak?');
+});
+
+it('presents itself as Yuridik Simulyator without the old SafeLaw name', function () {
+    $response = $this->get(route('home'));
+
+    $response->assertOk()
+        ->assertSee('Yuridik Simulyator')
+        ->assertDontSee('SafeLaw');
+});
+
+it('links to the virtual court hall', function () {
+    $response = $this->get(route('home'));
+
+    $response->assertOk()->assertSee('href="'.route('court-hall').'"', false);
 });
 
 it('gives the page script the URL of every AI endpoint', function () {

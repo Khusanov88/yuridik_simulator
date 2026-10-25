@@ -93,6 +93,16 @@ it('returns 422 for an unknown assistant mode', function () {
     $response->assertUnprocessable()->assertInvalid(['mode' => 'is invalid']);
 });
 
+it('introduces the assistant only as Yuridik Simulyator', function () {
+    fakeGeminiReply('Javob.');
+
+    $this->postJson(route('api.assistant.chat'), ['question' => 'Siz kimsiz?'])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'generateContent')
+        && str_contains($request['contents'][0]['parts'][0]['text'], '«Yuridik Simulyator» platformasining')
+        && ! str_contains(strtolower($request['contents'][0]['parts'][0]['text']), 'safelaw'));
+});
+
 it('returns a generated case with its evidence', function () {
     fakeGeminiReply("[ISH_NOMI]\nISH № 1\n[ISH_HOLATI]\nFabula.\n[DALIL_1]\nShartnoma | Mazmun\n[DALIL_2]\nDalolatnoma | Mazmun\n[DALIL_3]\nFK 333 | Mazmun\n[QARSHI_TOMON]\nE'tiroz.\n[SUDYA]\nSavol?");
 

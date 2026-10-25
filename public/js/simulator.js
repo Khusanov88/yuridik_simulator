@@ -1,9 +1,22 @@
-// ==================== SERVER BILAN ALOQA ====================
+// ==================== SOZLAMALAR ====================
 // Server faqat oxirgi 3000 belgini ishlatadi, qolganini yuborish shart emas.
 const HISTORY_LIMIT = 3000;
-const FILE_TEXT_LIMIT = 6000;
+const MAX_FILE_SIZE = 1024 * 1024;
+const DOCUMENTS_KEY = "yuridik_documents";
+const LEGACY_DOCUMENTS_KEY = "safelaw_files_v1";
+const API = window.API_ROUTES;
 
-// ==================== DASTLABKI MA'LUMOTLAR ====================
+const MODE_LABELS = {
+    doc_create: "📄 Hujjat yaratish",
+    doc_analyze: "🔍 Hujjat tahlili",
+    news_explain: "📰 Yangilik sharhi"
+};
+
+const ICONS = {
+    scale: '<svg viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M3 7h18M3 7l-2.5 6a3 3 0 0 0 5 0zM21 7l-2.5 6a3 3 0 0 0 5 0z"/></svg>',
+    close: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>'
+};
+
 const LEVELS = {
     maktab: { name: "Maktab o'quvchisi", rule: "Maktab o'quvchisiga tushunarli, Konstitutsiya va bazaviy qonunlar asosida sodda savol-javob qiling." },
     talaba: { name: "Yuridik talaba", rule: "Yuridik OTM talabasi darajasida Kodeks moddalari va nazariy asoslarni so'rang." },
@@ -88,416 +101,608 @@ const COURT_CASES = {
     }
 };
 
-let savedFiles = JSON.parse(localStorage.getItem("safelaw_files_v1") || "null") || [
-    { id: 1, title: "TALAB QILISH HUQUQINI O'TKAZISH TO'G'RISIDA SHARTNOMA", date: "20 okt. 2026 y.", size: "12 KB", content: "TALAB QILISH HUQUQINI O'TKAZISH SHARTNOMASI (SESSIYA)\n\nO'zbekiston Respublikasi Fuqarolik kodeksining 313-320-moddalariga asosan tuzildi..." },
-    { id: 2, title: "MUDDATLI TO'LOV SHARTI BILAN OLDI-SOTDI SHARTNOMASI", date: "20 okt. 2026 y.", size: "24 KB", content: "MUDDATLI TO'LOV SHARTI BILAN OLDI-SOTDI SHARTNOMASI\n\nFuqarolik kodeksining 421-moddasiga muvofiq tovarni bo'lib to'lash sharti bilan yetkazib berish..." },
-    { id: 3, title: "IQTISODIY SUDGA DA'VO ARIZASI (ZARARNI UNDIRISH)", date: "15 okt. 2026 y.", size: "14 KB", content: "Toshkent tumanlararo iqtisodiy sudiga\nDA'VO ARIZASI\nO'zbekiston Respublikasi FK 14 va 334-moddalariga asosan yetkazilgan 15 000 000 so'm zararni undirish to'g'risida..." },
-    { id: 4, title: "MEHNAT SHARTNOMASINI BEKOR QILISH USTIDAN SHIKOYAT", date: "15 okt. 2026 y.", size: "27 KB", content: "Fuqarolik ishlari bo'yicha sudga\nMehnat kodeksining 161-moddasi talablari buzilgan holda ishdan bo'shatilganlik sababli ishga tiklash to'g'risida..." }
-];
-
 let legalNews = [
     { title: "Mehnat kodeksiga masofaviy ish va elektron mehnat shartnomalari boʻyicha yangi tartib kiritildi", category: "Mehnat huquqi", date: "23.10.2026", summary: "Endilikda xodim bilan mehnat shartnomasini Yagona milliy mehnat tizimi orqali masofadan turib ERI yoki Face-ID orqali tasdiqlash tartibi soddalashtirildi." },
-    { title: "Tadbirkorlarning xususiy mulkini olib qoʻyishda kompensatsiya oldindan 100% toʻlanishi qatʼiy belgilandi", category: "Tadbirkorlik va Mulk", date: "22.10.2026", summary: "Maʼmuriy sudlarda hokimlik qarorlari ustidan nizolarni koʻrishda mutanosiblik va mulkdor roziligi birlamchi shart sifatida mustahkamlandi." },
+    { title: "Tadbirkorlarning xususiy mulkini olib qoʻyishda kompensatsiya oldindan 100% toʻlanishi qatʼiy belgilandi", category: "Tadbirkorlik va mulk", date: "22.10.2026", summary: "Maʼmuriy sudlarda hokimlik qarorlari ustidan nizolarni koʻrishda mutanosiblik va mulkdor roziligi birlamchi shart sifatida mustahkamlandi." },
     { title: "Muddatli toʻlov (rassrochka) shartnomalarida neustoyka (penya) miqdoriga cheklov oʻrnatildi", category: "Fuqarolik huquqi", date: "20.10.2026", summary: "Isteʼmolchi huquqlarini himoya qilish maqsadida kechiktirilgan toʻlovlar uchun hisoblanadigan penya asosiy qarzning 50 foizidan oshmasligi belgilandi." },
     { title: "Sud majlislarida sunʼiy intellekt stenogrammasi va elektron dalillarni qabul qilish tartibi yangilandi", category: "Sud-huquq islohoti", date: "18.10.2026", summary: "Barcha instansiya sudlarida audio va video yozuvlar avtomatik ravishda elektron bayonnomaga aylantirilishi yoʻlga qoʻyildi." }
 ];
 
-let currentMode = "general";
-let attachedFileContent = "";
-let mainChatHistory = "";
-let simHistory = "";
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-let voiceTarget = "home";
-
-window.onload = () => {
-    renderFilesGrid();
-    renderNewsGrid();
-    changeSimConfig();
+const state = {
+    mode: "general",
+    attachment: null,
+    chatHistory: "",
+    courtHistory: "",
+    chatBusy: false,
+    courtBusy: false,
+    recorder: null
 };
 
+let documents = [];
+
+// ==================== YORDAMCHILAR ====================
+const $ = id => document.getElementById(id);
+
+function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+}
+
+function button(className, label, onClick) {
+    const node = el("button", className, label);
+    node.type = "button";
+    node.addEventListener("click", onClick);
+    return node;
+}
+
+function autoResize(textarea) {
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
+}
+
+let toastTimer = null;
+function toast(message) {
+    const node = $("toast");
+    node.textContent = message;
+    node.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { node.hidden = true; }, 3500);
+}
+
+// ==================== NAVIGATSIYA ====================
 function openView(name) {
-    document.querySelectorAll(".view-section").forEach(s => s.classList.remove("active"));
-    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-    document.getElementById("view-" + name).classList.add("active");
-    const navBtn = document.getElementById("nav-" + name);
-    if (navBtn) navBtn.classList.add("active");
+    const view = $("view-" + name);
+    if (!view) return;
+    document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v === view));
+    document.querySelectorAll(".nav-item[data-view]").forEach(n => n.classList.toggle("active", n.dataset.view === name));
+    $("viewTitle").textContent = view.dataset.title;
+    closeSidebar();
 }
 
-function resetHomeChat() {
-    openView("home");
-    mainChatHistory = "";
-    currentMode = "general";
-    document.getElementById("mainChatLog").style.display = "none";
-    document.getElementById("mainChatLog").innerHTML = "";
-    document.getElementById("heroBlock").style.display = "flex";
-    document.getElementById("aiInput").value = "";
+function openSidebar() { document.body.classList.add("sidebar-open"); }
+function closeSidebar() { document.body.classList.remove("sidebar-open"); }
+
+// ==================== AI-YORDAMCHI ====================
+function setMode(mode) {
+    state.mode = mode in MODE_LABELS ? mode : "general";
+    renderChips();
 }
 
-function startQuickAction(mode, promptText) {
+function renderChips() {
+    const chips = $("composerChips");
+    chips.replaceChildren();
+    if (state.mode !== "general") {
+        chips.append(chip(MODE_LABELS[state.mode], () => setMode("general")));
+    }
+    if (state.attachment) {
+        chips.append(chip("📎 " + state.attachment.name, () => { state.attachment = null; renderChips(); }));
+    }
+}
+
+function chip(label, onRemove) {
+    const node = el("span", "chip", label);
+    const remove = button("", "", onRemove);
+    remove.innerHTML = ICONS.close;
+    remove.setAttribute("aria-label", "Olib tashlash");
+    node.append(remove);
+    return node;
+}
+
+function usePrompt(mode, text) {
     openView("home");
-    currentMode = mode;
-    const input = document.getElementById("aiInput");
-    input.value = promptText;
+    setMode(mode);
+    const input = $("aiInput");
+    input.value = text;
+    autoResize(input);
     input.focus();
+    input.setSelectionRange(text.length, text.length);
 }
 
-function handleFileAttach(input) {
-    const file = input.files[0];
+function startNewChat() {
+    state.chatHistory = "";
+    state.attachment = null;
+    setMode("general");
+    $("chatMessages").replaceChildren();
+    $("welcome").hidden = false;
+    $("aiInput").value = "";
+    autoResize($("aiInput"));
+    openView("home");
+    $("aiInput").focus();
+}
+
+function attachFile(file) {
     if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+        toast("Fayl juda katta. 1 MB gacha boʻlgan .txt fayl yuklang.");
+        return;
+    }
     const reader = new FileReader();
-    reader.onload = e => {
-        attachedFileContent = e.target.result;
-        const badge = document.getElementById("attachedFileBadge");
-        badge.style.display = "block";
-        badge.innerText = "📎 Biriktirildi: " + file.name;
+    reader.onload = () => {
+        state.attachment = { name: file.name, text: String(reader.result) };
+        renderChips();
+        $("aiInput").focus();
     };
+    reader.onerror = () => toast("Faylni oʻqib boʻlmadi.");
     reader.readAsText(file);
 }
 
-// ==================== 1. AI YORDAMCHI MULOQOTI ====================
-async function sendAIChat(audioB64 = null, audioMime = null) {
-    const input = document.getElementById("aiInput");
-    const q = input.value.trim();
-    if (!q && !audioB64) return;
-
-    document.getElementById("heroBlock").style.display = "none";
-    const log = document.getElementById("mainChatLog");
-    log.style.display = "flex";
-
-    const userBubble = document.createElement("div");
-    userBubble.className = "chat-msg user";
-    userBubble.innerText = audioB64 ? "🎙 [Ovozli murojaat yuborildi]" : q;
-    log.appendChild(userBubble);
-    input.value = "";
-    document.getElementById("attachedFileBadge").style.display = "none";
-
-    const aiBubble = document.createElement("div");
-    aiBubble.className = "chat-msg ai";
-    aiBubble.innerHTML = `<div class="msg-head"><span>Yuridik AI</span></div><div class="msg-body" style="color:var(--text-secondary);">Qonunchilik bazasi tahlil qilinmoqda...</div>`;
-    log.appendChild(aiBubble);
-    log.scrollTop = log.scrollHeight;
-
-    try {
-        const data = await apiPost(window.API_ROUTES.assistantChat, {
-            mode: currentMode,
-            question: q,
-            file_text: attachedFileContent.slice(0, FILE_TEXT_LIMIT),
-            history: mainChatHistory.slice(-HISTORY_LIMIT),
-            audio_base64: audioB64,
-            audio_mime: audioMime
-        });
-        attachedFileContent = "";
-        const answer = data.answer || "Xatolik yuz berdi.";
-
-        aiBubble.innerHTML = `
-            <div class="msg-head">
-                <span>Yuridik AI — Huquqiy xulosa</span>
-                <button class="btn-sm">💾 Fayllarimga saqlash (.DOCX)</button>
-            </div>
-            <div>${escapeHtml(answer).replace(/\n/g, "<br>")}</div>
-        `;
-        aiBubble.querySelector("button").addEventListener("click", () => saveAnswerToFiles(answer));
-        mainChatHistory += "Savol: " + q + "\nJavob: " + answer + "\n---\n";
-    } catch (e) {
-        aiBubble.innerText = "Aloqada xatolik yuz berdi.";
-    }
+function scrollChat() {
+    const scroll = $("chatScroll");
+    scroll.scrollTop = scroll.scrollHeight;
 }
 
-function saveAnswerToFiles(content) {
-    const firstLine = content.split("\n")[0].substring(0, 50).toUpperCase() || "YURIDIK HUJJAT";
-    const newDoc = {
-        id: Date.now(),
-        title: firstLine,
-        date: new Date().toLocaleDateString("uz-UZ"),
-        size: Math.max(8, Math.round(content.length / 120)) + " KB",
-        content: content
+function logo() {
+    const node = el("span", "logo");
+    node.innerHTML = ICONS.scale;
+    return node;
+}
+
+function appendUserMessage(text, attachmentName) {
+    const msg = el("div", "msg msg-user");
+    const body = el("div", "msg-body");
+    if (attachmentName) body.append(el("div", "msg-note", "📎 " + attachmentName));
+    body.append(document.createTextNode(text));
+    msg.append(body);
+    $("chatMessages").append(msg);
+    scrollChat();
+}
+
+function appendAiMessage() {
+    const msg = el("div", "msg msg-ai");
+    const content = el("div", "msg-content");
+    const typing = el("div", "typing");
+    typing.append(el("span"), el("span"), el("span"));
+    content.append(typing);
+    msg.append(logo(), content);
+    $("chatMessages").append(msg);
+    scrollChat();
+
+    return {
+        done(text) {
+            typing.remove();
+            content.append(el("div", "msg-body", text), messageActions(text));
+            scrollChat();
+        },
+        fail(text) {
+            msg.classList.add("msg-error");
+            typing.remove();
+            content.append(el("div", "msg-body", text));
+            scrollChat();
+        }
     };
-    savedFiles.unshift(newDoc);
-    localStorage.setItem("safelaw_files_v1", JSON.stringify(savedFiles));
-    renderFilesGrid();
-    openView("files");
 }
 
-// ==================== 2. MENING FAYLLARIM ====================
-function renderFilesGrid(query = "") {
-    const grid = document.getElementById("filesGrid");
-    const q = query.toLowerCase();
-    const filtered = savedFiles.filter(f => f.title.toLowerCase().includes(q));
-    document.getElementById("filesCountText").innerText = "Jami: " + filtered.length;
-    grid.innerHTML = "";
-
-    filtered.forEach(f => {
-        const card = document.createElement("div");
-        card.className = "file-card";
-        card.innerHTML = `
-            <div class="file-top">
-                <div class="file-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                </div>
-                <div>
-                    <div class="file-name" title="${escapeHtml(f.title)}">${escapeHtml(f.title)}</div>
-                    <div class="file-meta"><span>DOCX</span> ${escapeHtml(f.date)} · ${escapeHtml(f.size)}</div>
-                </div>
-            </div>
-            <div class="file-actions">
-                <div style="display:flex; gap:6px;">
-                    <button class="btn-sm primary" onclick="downloadDocFile(${f.id})">⬇ Yuklab olish</button>
-                    <button class="btn-sm" onclick="openFileInChat(${f.id})">💬 Chatga</button>
-                </div>
-                <button class="btn-sm danger" onclick="deleteDocFile(${f.id})">🗑 Oʻchirish</button>
-            </div>
-        `;
-        grid.appendChild(card);
+function messageActions(text) {
+    const actions = el("div", "msg-actions");
+    const copy = button("btn btn-ghost btn-sm", "Nusxa olish", () => {
+        navigator.clipboard?.writeText(text)
+            .then(() => toast("Nusxa olindi"))
+            .catch(() => toast("Nusxa olib boʻlmadi"));
     });
+    const save = button("btn btn-ghost btn-sm", "Hujjatlarimga saqlash", () => {
+        saveDocument(text);
+        save.textContent = "✓ Saqlandi";
+        save.disabled = true;
+    });
+    actions.append(copy, save);
+    return actions;
 }
 
-function downloadDocFile(id) {
-    const f = savedFiles.find(x => x.id === id);
-    if (!f) return;
-    const blob = new Blob(["\ufeff" + f.content], { type: "application/msword;charset=utf-8" });
+function setChatBusy(busy) {
+    state.chatBusy = busy;
+    $("sendBtn").disabled = busy;
+    $("homeMicBtn").disabled = busy;
+}
+
+async function sendChat(audio = null) {
+    if (state.chatBusy) return;
+    const input = $("aiInput");
+    const question = input.value.trim();
+    const attachment = state.attachment;
+    if (!question && !audio && !attachment) return;
+
+    $("welcome").hidden = true;
+    appendUserMessage(audio ? "🎙 Ovozli savol" : (question || "Biriktirilgan hujjatni koʻrib chiqing."), attachment?.name);
+    input.value = "";
+    autoResize(input);
+    state.attachment = null;
+    renderChips();
+
+    const reply = appendAiMessage();
+    setChatBusy(true);
+    try {
+        const data = await apiPost(API.assistantChat, {
+            mode: state.mode,
+            question: question,
+            file_text: attachment?.text ?? "",
+            history: state.chatHistory.slice(-HISTORY_LIMIT),
+            audio_base64: audio?.data ?? null,
+            audio_mime: audio?.mime ?? null
+        });
+        if (!data.ok) {
+            reply.fail(data.answer || "Soʻrovni bajarib boʻlmadi. Qayta urinib koʻring.");
+            return;
+        }
+        reply.done(data.answer);
+        state.chatHistory += "Savol: " + (question || "[ovozli savol]") + "\nJavob: " + data.answer + "\n---\n";
+    } catch (e) {
+        reply.fail("Aloqada xatolik yuz berdi. Internetni tekshirib, qayta urinib koʻring.");
+    } finally {
+        setChatBusy(false);
+    }
+}
+
+// ==================== MENING HUJJATLARIM ====================
+/** Eski versiya koʻrsatgan namuna hujjatlar (id 1–4, "..." bilan tugaydi) haqiqiy hujjat emas. */
+function isRealDocument(doc) {
+    return doc && typeof doc.content === "string" && typeof doc.title === "string"
+        && !(doc.id <= 4 && doc.content.endsWith("..."));
+}
+
+function loadDocuments() {
+    try {
+        const stored = localStorage.getItem(DOCUMENTS_KEY) ?? localStorage.getItem(LEGACY_DOCUMENTS_KEY);
+        const parsed = JSON.parse(stored || "[]");
+        return Array.isArray(parsed) ? parsed.filter(isRealDocument) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function storeDocuments() {
+    try {
+        localStorage.setItem(DOCUMENTS_KEY, JSON.stringify(documents));
+        localStorage.removeItem(LEGACY_DOCUMENTS_KEY);
+    } catch (e) {
+        toast("Hujjatni brauzerda saqlab boʻlmadi.");
+    }
+}
+
+function saveDocument(content) {
+    const firstLine = content.split("\n").map(line => line.trim()).find(Boolean) || "Yuridik hujjat";
+    documents.unshift({
+        id: Date.now(),
+        title: firstLine.slice(0, 80),
+        date: new Date().toLocaleDateString("ru-RU"),
+        size: Math.max(1, Math.ceil(new Blob([content]).size / 1024)) + " KB",
+        content: content
+    });
+    storeDocuments();
+    renderDocuments();
+    toast("«Mening hujjatlarim» boʻlimiga saqlandi");
+}
+
+function renderDocuments() {
+    const query = $("filesSearch").value.trim().toLowerCase();
+    const visible = documents.filter(doc => doc.title.toLowerCase().includes(query));
+
+    $("filesCount").textContent = documents.length;
+    $("filesCount").hidden = documents.length === 0;
+    $("filesGrid").replaceChildren(...visible.map(documentCard));
+
+    const empty = $("filesEmpty");
+    empty.hidden = visible.length > 0;
+    empty.querySelector("strong").textContent = documents.length ? "Hech narsa topilmadi" : "Hozircha hujjat yoʻq";
+    empty.querySelector("span").hidden = documents.length > 0;
+}
+
+function documentCard(doc) {
+    const card = el("article", "card");
+    const meta = el("div", "card-meta");
+    meta.append(el("span", "badge", "DOC"), el("span", "", doc.date + " · " + doc.size));
+    const preview = doc.content.length > 160 ? doc.content.slice(0, 160) + "…" : doc.content;
+
+    const actions = el("div", "card-actions");
+    actions.append(
+        button("btn btn-primary btn-sm", "Yuklab olish", () => downloadDocument(doc)),
+        button("btn btn-ghost btn-sm", "Chatda ochish", () => openDocumentInChat(doc)),
+        button("btn btn-danger btn-sm", "Oʻchirish", () => deleteDocument(doc))
+    );
+
+    card.append(meta, el("h3", "file-title", doc.title), el("p", "", preview), actions);
+    return card;
+}
+
+function downloadDocument(doc) {
+    const blob = new Blob(["﻿" + doc.content], { type: "application/msword;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = f.title.replace(/[^a-zA-Z0-9А-Яа-яЎўҚқҒғҲҳ_\- ]/g, "") + ".doc";
-    a.click();
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = (doc.title.replace(/[\\/:*?"<>|]+/g, "").trim() || "hujjat") + ".doc";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function openFileInChat(id) {
-    const f = savedFiles.find(x => x.id === id);
-    if (!f) return;
-    attachedFileContent = f.content;
-    openView("home");
-    const badge = document.getElementById("attachedFileBadge");
-    badge.style.display = "block";
-    badge.innerText = "📎 Tanlangan hujjat: " + f.title;
-    document.getElementById("aiInput").value = "Ushbu hujjatni O'zbekiston qonunchiligi bo'yicha tekshirib, kamchiliklarini aytib bering.";
+function openDocumentInChat(doc) {
+    state.attachment = { name: doc.title, text: doc.content };
+    usePrompt("doc_analyze", "Ushbu hujjatni Oʻzbekiston qonunchiligi boʻyicha tekshirib, kamchiliklarini aytib bering.");
 }
 
-function deleteDocFile(id) {
-    savedFiles = savedFiles.filter(x => x.id !== id);
-    localStorage.setItem("safelaw_files_v1", JSON.stringify(savedFiles));
-    renderFilesGrid();
+function deleteDocument(doc) {
+    if (!confirm("«" + doc.title + "» hujjatini oʻchirasizmi?")) return;
+    documents = documents.filter(item => item.id !== doc.id);
+    storeDocuments();
+    renderDocuments();
 }
 
-// ==================== 3. HUQUQIY YANGILIKLAR ====================
-function renderNewsGrid() {
-    const grid = document.getElementById("newsGrid");
-    grid.innerHTML = "";
-    legalNews.forEach((n, i) => {
-        const card = document.createElement("div");
-        card.className = "news-card";
-        card.innerHTML = `
-            <div>
-                <span class="news-badge">${escapeHtml(n.category)} · ${escapeHtml(n.date)}</span>
-                <h3 style="font-size:16px; color:#fff; margin-bottom:8px; line-height:1.4;">${escapeHtml(n.title)}</h3>
-                <p style="font-size:13.5px; color:var(--text-secondary); line-height:1.55;">${escapeHtml(n.summary)}</p>
-            </div>
-            <div style="display:flex; justify-content:flex-end;">
-                <button class="btn-sm" onclick="explainNews(${i})">🤖 AI sharhini oʻqish</button>
-            </div>
-        `;
-        grid.appendChild(card);
-    });
+// ==================== HUQUQIY YANGILIKLAR ====================
+function renderNews() {
+    $("newsGrid").replaceChildren(...legalNews.map((news, index) => {
+        const card = el("article", "card");
+        const meta = el("div", "card-meta");
+        meta.append(el("span", "badge", news.category || "Qonunchilik"), el("span", "", news.date || ""));
+        const actions = el("div", "card-actions");
+        actions.append(button("btn btn-ghost btn-sm", "🤖 AI sharhi", () => explainNews(index)));
+        card.append(meta, el("h3", "", news.title || ""), el("p", "", news.summary || ""), actions);
+        return card;
+    }));
 }
 
-function explainNews(idx) {
-    const n = legalNews[idx];
-    startQuickAction("news_explain", "Quyidagi qonunchilik yangiligini batafsil huquqiy sharhlab bering: " + n.title + " — " + n.summary);
-    sendAIChat();
+function explainNews(index) {
+    const news = legalNews[index];
+    usePrompt("news_explain", "Quyidagi qonunchilik yangiligini batafsil sharhlab bering: " + news.title + " — " + news.summary);
+    sendChat();
 }
 
-async function refreshLegalNews() {
+async function refreshNews(trigger) {
+    const label = trigger.textContent;
+    trigger.disabled = true;
+    trigger.textContent = "Yangilanmoqda…";
     try {
-        const data = await apiPost(window.API_ROUTES.newsRefresh, {});
-        if (data.ok && Array.isArray(data.news)) {
-            legalNews = data.news;
-            renderNewsGrid();
+        const data = await apiPost(API.newsRefresh, {});
+        const fresh = Array.isArray(data.news) ? data.news.filter(item => item && item.title) : [];
+        if (data.ok && fresh.length) {
+            legalNews = fresh;
+            renderNews();
+        } else {
+            toast(data.result || "Yangiliklarni yangilab boʻlmadi. Keyinroq urinib koʻring.");
         }
-    } catch (e) {}
+    } catch (e) {
+        toast("Aloqada xatolik yuz berdi.");
+    } finally {
+        trigger.disabled = false;
+        trigger.textContent = label;
+    }
 }
 
-// ==================== 4. SUD SIMULYATORI ====================
-function changeSimConfig() {
-    const court = document.getElementById("courtSelect").value;
-    const data = COURT_CASES[court] || COURT_CASES["Fuqarolik sudi"];
-    document.getElementById("simCaseTitle").innerText = data.title;
-    document.getElementById("simCaseDesc").innerText = data.desc;
-
-    const evBox = document.getElementById("simEvidences");
-    evBox.innerHTML = "";
-    data.evidences.forEach(e => {
-        const parts = e.split("|");
-        const div = document.createElement("div");
-        div.className = "ev-item";
-        div.innerHTML = `<strong>📄 ${escapeHtml(parts[0].trim())}</strong><span>${parts[1] ? escapeHtml(parts[1].trim()) : ""}</span>`;
-        div.onclick = () => {
-            const inp = document.getElementById("simInput");
-            inp.value += `Ish materiallaridagi «${parts[0].trim()}» daliliga asosan, `;
-            inp.focus();
-        };
-        evBox.appendChild(div);
-    });
-
-    const msgBox = document.getElementById("simMessages");
-    msgBox.innerHTML = "";
-    appendSimMsg("opponent", "Qarshi tomon vakili", data.opp);
-    appendSimMsg("judge", "Raislik qiluvchi (Sudya)", data.judge);
-    simHistory = "Qarshi tomon: " + data.opp + "\nSudya: " + data.judge + "\n---\n";
+// ==================== SUD SIMULYATORI ====================
+function currentLevel() {
+    return LEVELS[$("levelSelect").value] || LEVELS.talaba;
 }
 
-function appendSimMsg(type, roleTitle, text) {
-    const box = document.getElementById("simMessages");
-    const div = document.createElement("div");
-    div.className = "role-card " + type;
-    div.innerHTML = `<span class="role-tag">${escapeHtml(roleTitle)}</span><div>${escapeHtml(text).replace(/\n/g, "<br>")}</div>`;
-    box.appendChild(div);
+function loadCourtCase() {
+    const data = COURT_CASES[$("courtSelect").value] || COURT_CASES["Fuqarolik sudi"];
+    showCase(data.title, data.desc, data.evidences, data.opp, data.judge);
+}
+
+function showCase(title, desc, evidences, opponent, judge) {
+    $("caseTitle").textContent = title;
+    $("caseDesc").textContent = desc;
+    renderEvidences(evidences);
+    $("courtMessages").replaceChildren();
+    appendCourtMessage("opponent", "Qarshi tomon", opponent);
+    appendCourtMessage("judge", "Raislik qiluvchi (sudya)", judge);
+    state.courtHistory = "Qarshi tomon: " + opponent + "\nSudya: " + judge + "\n---\n";
+}
+
+function renderEvidences(evidences) {
+    $("evidenceList").replaceChildren(...evidences.map(evidence => {
+        const [name, ...rest] = evidence.split("|");
+        const title = name.trim();
+        const item = button("evidence", "", () => {
+            const input = $("courtInput");
+            const separator = input.value && !input.value.endsWith(" ") ? " " : "";
+            input.value += separator + "«" + title + "» daliliga koʻra, ";
+            autoResize(input);
+            input.focus();
+        });
+        item.append(el("strong", "", "📄 " + title), el("span", "", rest.join("|").trim()));
+        return item;
+    }));
+}
+
+function appendCourtMessage(role, name, text) {
+    const box = $("courtMessages");
+    const msg = el("div", "role-msg role-" + role);
+    msg.append(el("span", "role-name", name), el("div", "role-text", text));
+    box.append(msg);
     box.scrollTop = box.scrollHeight;
+    return msg;
 }
 
-async function sendSimTurn(audioB64 = null, audioMime = null) {
-    const inp = document.getElementById("simInput");
-    const text = inp.value.trim();
-    if (!text && !audioB64) return;
+function courtContext() {
+    const level = currentLevel();
+    return {
+        court_type: $("courtSelect").value,
+        level_name: level.name,
+        level_rule: level.rule,
+        case_text: $("caseDesc").textContent,
+        evidence_list: Array.from(document.querySelectorAll(".evidence")).map(item => item.innerText).join("\n"),
+        history: state.courtHistory.slice(-HISTORY_LIMIT)
+    };
+}
 
-    const lvlKey = document.getElementById("levelSelect").value;
-    const court = document.getElementById("courtSelect").value;
+function setCourtBusy(busy) {
+    state.courtBusy = busy;
+    document.querySelectorAll('#view-court [data-action]').forEach(control => { control.disabled = busy; });
+}
 
-    if (!audioB64) {
-        appendSimMsg("advocate", "Siz (Advokat)", text);
-        inp.value = "";
-    } else {
-        appendSimMsg("advocate", "Ovozli nutq", "🎙 Ovozli nutq tahlil qilinmoqda...");
-    }
-
+/** Soʻrov davomida kutish xabarini koʻrsatadi; xatoda null qaytaradi. */
+async function courtRequest(pendingText, request) {
+    if (state.courtBusy) return null;
+    setCourtBusy(true);
+    const pending = appendCourtMessage("system", "Sud kotibi", pendingText);
     try {
-        const data = await apiPost(window.API_ROUTES.courtTurn, {
-            court_type: court,
-            level_name: LEVELS[lvlKey].name,
-            level_rule: LEVELS[lvlKey].rule,
-            case_text: document.getElementById("simCaseDesc").innerText,
-            evidence_list: Array.from(document.querySelectorAll(".ev-item")).map(el => el.innerText).join("\n"),
-            history: simHistory.slice(-HISTORY_LIMIT),
-            user_text: text,
-            audio_base64: audioB64,
-            audio_mime: audioMime
-        });
-        if (!data.ok) {
-            appendSimMsg("judge", "Tizim", data.error || "Aloqada uzilish bo'ldi. Qayta urinib ko'ring.");
-            return;
-        }
-        if (audioB64 && data.transcript) {
-            appendSimMsg("advocate", "Sud kotibi (Stenogramma)", data.transcript);
-        }
-        appendSimMsg("opponent", "Qarshi tomon eʼtirozi", data.opponent);
-        appendSimMsg("judge", "Raislik qiluvchi (Sudya)", data.judge);
-        simHistory += "Advokat: " + (data.transcript || text) + "\nQarshi tomon: " + data.opponent + "\nSudya: " + data.judge + "\n---\n";
-    } catch (e) {}
-}
-
-async function generateNewSimCase() {
-    const lvlKey = document.getElementById("levelSelect").value;
-    const court = document.getElementById("courtSelect").value;
-    appendSimMsg("judge", "Tizim", "Yangi sud ishi va dalillar shakllantirilmoqda...");
-    try {
-        const data = await apiPost(window.API_ROUTES.courtCase, {
-            court_type: court,
-            level_name: LEVELS[lvlKey].name,
-            level_rule: LEVELS[lvlKey].rule
-        });
-        if (!data.ok) {
-            appendSimMsg("judge", "Tizim", data.error || "Yangi ish yaratishda uzilish bo'ldi. Qayta urinib ko'ring.");
-            return;
-        }
-        document.getElementById("simCaseTitle").innerText = data.title;
-        document.getElementById("simCaseDesc").innerText = data.desc;
-
-        const evBox = document.getElementById("simEvidences");
-        evBox.innerHTML = "";
-        (data.evidences || []).forEach(e => {
-            const parts = e.split("|");
-            const div = document.createElement("div");
-            div.className = "ev-item";
-            div.innerHTML = `<strong>📄 ${escapeHtml(parts[0].trim())}</strong><span>${parts[1] ? escapeHtml(parts[1].trim()) : ""}</span>`;
-            div.onclick = () => { document.getElementById("simInput").value += `«${parts[0].trim()}»ga ko'ra, `; };
-            evBox.appendChild(div);
-        });
-
-        document.getElementById("simMessages").innerHTML = "";
-        appendSimMsg("opponent", "Qarshi tomon vakili", data.opponent);
-        appendSimMsg("judge", "Raislik qiluvchi (Sudya)", data.judge);
-        simHistory = "Qarshi tomon: " + data.opponent + "\nSudya: " + data.judge + "\n---\n";
-    } catch (e) {}
-}
-
-async function getSimHint() {
-    const lvlKey = document.getElementById("levelSelect").value;
-    const court = document.getElementById("courtSelect").value;
-    const data = await apiPost(window.API_ROUTES.courtHint, {
-        court_type: court,
-        level_name: LEVELS[lvlKey].name,
-        case_text: document.getElementById("simCaseDesc").innerText,
-        history: simHistory.slice(-HISTORY_LIMIT)
-    });
-    if (data.ok) appendSimMsg("advocate", "Ustoz yurist maslahati", data.result);
-}
-
-async function getSimVerdict() {
-    const lvlKey = document.getElementById("levelSelect").value;
-    const court = document.getElementById("courtSelect").value;
-    appendSimMsg("judge", "Sud maslahatxonasi", "Hal qiluv qarori tayyorlanmoqda...");
-    const data = await apiPost(window.API_ROUTES.courtVerdict, {
-        court_type: court,
-        level_name: LEVELS[lvlKey].name,
-        case_text: document.getElementById("simCaseDesc").innerText,
-        history: simHistory.slice(-HISTORY_LIMIT)
-    });
-    if (data.ok) {
-        appendSimMsg("judge", "OʻZBEKISTON RESPUBLIKASI NOMIDAN — YAKUNIY SUD HUJJATI", data.result);
-    } else {
-        appendSimMsg("judge", "Tizim", data.result || "Hukm chiqarishda uzilish bo'ldi.");
+        return await request();
+    } catch (e) {
+        appendCourtMessage("system", "Sud kotibi", "⚠️ Aloqada xatolik yuz berdi. Qayta urinib koʻring.");
+        return null;
+    } finally {
+        pending.remove();
+        setCourtBusy(false);
     }
 }
 
-// ==================== OVOZLI XABAR (MIKROFON) ====================
-async function toggleVoice(target) {
-    const btn = document.getElementById(target === "home" ? "homeMicBtn" : "courtMicBtn");
-    if (isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        btn.classList.remove("recording");
+async function sendCourtTurn(audio = null) {
+    const input = $("courtInput");
+    const text = input.value.trim();
+    if (state.courtBusy || (!text && !audio)) return;
+
+    appendCourtMessage("advocate", "Siz (advokat)", audio ? "🎙 Ovozli nutq" : text);
+    input.value = "";
+    autoResize(input);
+
+    const data = await courtRequest("Sud nutqingizni tinglamoqda…", () => apiPost(API.courtTurn, {
+        ...courtContext(),
+        user_text: text,
+        audio_base64: audio?.data ?? null,
+        audio_mime: audio?.mime ?? null
+    }));
+    if (!data) return;
+    if (!data.ok) {
+        appendCourtMessage("system", "Sud kotibi", "⚠️ " + (data.error || "Aloqada uzilish boʻldi. Qayta urinib koʻring."));
         return;
     }
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        voiceTarget = target;
-        audioChunks = [];
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-        mediaRecorder.onstop = () => {
-            const mime = mediaRecorder.mimeType || "audio/webm";
-            const blob = new Blob(audioChunks, { type: mime });
-            stream.getTracks().forEach(t => t.stop());
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const b64 = reader.result.split(",")[1];
-                if (voiceTarget === "home") sendAIChat(b64, mime);
-                else sendSimTurn(b64, mime);
-            };
-            reader.readAsDataURL(blob);
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        btn.classList.add("recording");
-    } catch (e) {
-        alert("Mikrofondan foydalanish uchun brauzerda ruxsat bering.");
+
+    if (audio && data.transcript) {
+        appendCourtMessage("advocate", "Stenogramma", data.transcript);
+    }
+    appendCourtMessage("opponent", "Qarshi tomon eʼtirozi", data.opponent);
+    appendCourtMessage("judge", "Raislik qiluvchi (sudya)", data.judge);
+    state.courtHistory += "Advokat: " + (data.transcript || text) + "\nQarshi tomon: " + data.opponent + "\nSudya: " + data.judge + "\n---\n";
+}
+
+async function generateCourtCase() {
+    const level = currentLevel();
+    const data = await courtRequest("Yangi sud ishi va dalillar tayyorlanmoqda…", () => apiPost(API.courtCase, {
+        court_type: $("courtSelect").value,
+        level_name: level.name,
+        level_rule: level.rule
+    }));
+    if (!data) return;
+    if (!data.ok) {
+        appendCourtMessage("system", "Sud kotibi", "⚠️ " + (data.error || "Yangi ish yaratib boʻlmadi. Qayta urinib koʻring."));
+        return;
+    }
+    showCase(data.title, data.desc, data.evidences || [], data.opponent, data.judge);
+}
+
+async function requestHint() {
+    const data = await courtRequest("Ustoz yurist ish materiallarini koʻrib chiqmoqda…", () => apiPost(API.courtHint, courtContext()));
+    if (data) {
+        appendCourtMessage(data.ok ? "hint" : "system", data.ok ? "💡 Ustoz maslahati" : "Sud kotibi", data.ok ? data.result : "⚠️ " + data.result);
     }
 }
 
-function filterHistory(q) {
-    const val = q.toLowerCase();
-    document.querySelectorAll(".history-item").forEach(el => {
-        el.style.display = el.innerText.toLowerCase().includes(val) ? "block" : "none";
-    });
+async function requestVerdict() {
+    const data = await courtRequest("Sud hal qiluv qarorini tayyorlamoqda…", () => apiPost(API.courtVerdict, courtContext()));
+    if (data) {
+        appendCourtMessage(data.ok ? "verdict" : "system", data.ok ? "📜 Yakuniy sud hujjati" : "Sud kotibi", data.ok ? data.result : "⚠️ " + data.result);
+    }
 }
+
+// ==================== OVOZLI XABAR ====================
+async function toggleVoice(target, trigger) {
+    if (state.recorder) {
+        state.recorder.stop();
+        return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        toast("Brauzeringiz ovoz yozishni qoʻllab-quvvatlamaydi.");
+        return;
+    }
+
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+        toast("Mikrofondan foydalanish uchun brauzerda ruxsat bering.");
+        return;
+    }
+
+    const chunks = [];
+    const recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data); };
+    recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        state.recorder = null;
+        trigger.classList.remove("recording");
+        const mime = recorder.mimeType || "audio/webm";
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const data = String(reader.result).split(",")[1];
+            if (!data) return;
+            const audio = { data, mime };
+            if (target === "home") sendChat(audio);
+            else sendCourtTurn(audio);
+        };
+        reader.readAsDataURL(new Blob(chunks, { type: mime }));
+    };
+
+    recorder.start();
+    state.recorder = recorder;
+    trigger.classList.add("recording");
+    toast("Yozib olinmoqda… Tugatish uchun tugmani yana bosing.");
+}
+
+// ==================== HODISALAR ====================
+document.addEventListener("click", event => {
+    const target = event.target.closest("[data-action], [data-view], [data-prompt]");
+    if (!target || target.disabled) return;
+
+    if (target.dataset.prompt !== undefined) {
+        usePrompt(target.dataset.mode || "general", target.dataset.prompt);
+        return;
+    }
+    if (target.dataset.view) {
+        openView(target.dataset.view);
+        return;
+    }
+
+    switch (target.dataset.action) {
+        case "new-chat": startNewChat(); break;
+        case "send-chat": sendChat(); break;
+        case "send-court": sendCourtTurn(); break;
+        case "voice": toggleVoice(target.dataset.target, target); break;
+        case "new-case": generateCourtCase(); break;
+        case "hint": requestHint(); break;
+        case "verdict": requestVerdict(); break;
+        case "refresh-news": refreshNews(target); break;
+        case "open-sidebar": openSidebar(); break;
+        case "close-sidebar": closeSidebar(); break;
+    }
+});
+
+function sendOnEnter(textarea, send) {
+    textarea.addEventListener("keydown", event => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+            event.preventDefault();
+            send();
+        }
+    });
+    textarea.addEventListener("input", () => autoResize(textarea));
+}
+
+sendOnEnter($("aiInput"), () => sendChat());
+sendOnEnter($("courtInput"), () => sendCourtTurn());
+
+$("fileInput").addEventListener("change", event => {
+    attachFile(event.target.files[0]);
+    event.target.value = "";
+});
+$("filesSearch").addEventListener("input", renderDocuments);
+$("courtSelect").addEventListener("change", loadCourtCase);
+$("levelSelect").addEventListener("change", () => {
+    appendCourtMessage("system", "Sud kotibi", "Daraja: " + currentLevel().name + ". Shu daraja uchun yangi ish olish uchun «✨ Yangi ish» tugmasini bosing.");
+});
+document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeSidebar();
+});
+
+documents = loadDocuments();
+renderDocuments();
+renderNews();
+loadCourtCase();
+renderChips();

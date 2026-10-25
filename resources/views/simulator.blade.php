@@ -4,224 +4,231 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Yuridik Simulyator — Oʻzbekiston Huquqiy AI Platformasi</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="description" content="Oʻzbekiston qonunchiligi boʻyicha AI-yordamchi, hujjat tayyorlash va interaktiv sud simulyatori.">
+    <meta name="theme-color" content="#0b0d12">
+    <title>Yuridik Simulyator — Oʻzbekiston qonunchiligi boʻyicha AI-yordamchi</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c6cff'/%3E%3Cg fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 7v18M11 25h10M8 11h16M8 11l-3 7a3.5 3.5 0 0 0 6 0zM24 11l-3 7a3.5 3.5 0 0 0 6 0z'/%3E%3C/g%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="{{ asset('css/simulator.css') }}" rel="stylesheet">
 </head>
 <body>
+<div class="app">
 
-<!-- ==================== LEFT SIDEBAR ==================== -->
-<aside class="sidebar">
-    <a href="#" class="brand" onclick="openView('home')">
-        <div class="brand-box">S</div>
-        <span class="brand-name">Yuridik AI</span>
-    </a>
+    <aside class="sidebar" id="sidebar">
+        <a href="{{ route('home') }}" class="brand">
+            <span class="logo">
+                <svg viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M3 7h18M3 7l-2.5 6a3 3 0 0 0 5 0zM21 7l-2.5 6a3 3 0 0 0 5 0z"/></svg>
+            </span>
+            <span>
+                <span class="brand-name">Yuridik Simulyator</span>
+                <span class="brand-sub">AI huquqiy yordamchi</span>
+            </span>
+        </a>
 
-    <button class="btn-new-chat" onclick="resetHomeChat()">
-        <span>+</span> Yangi chat
-    </button>
-
-    <div class="nav-group">
-        <button class="nav-item active" id="nav-home" onclick="openView('home')">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            AI-Yordamchi (Chat)
+        <button class="btn btn-primary btn-block" data-action="new-chat">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Yangi suhbat
         </button>
-        <button class="nav-item" id="nav-news" onclick="openView('news')">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Huquqiy yangiliklar
-        </button>
-        <button class="nav-item" id="nav-files" onclick="openView('files')">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            Mening fayllarim
-        </button>
-    </div>
 
-    <div class="nav-group">
-        <button class="nav-item" id="nav-court" onclick="openView('court')">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-            Sud simulyatori (7 sud)
-        </button>
-        <button class="nav-item" onclick="startQuickAction('doc_create', 'Mengaa muddatli to\'lov sharti bilan oldi-sotdi shartnomasi loyihasini tuzib bering')">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Hujjat yaratish
-        </button>
-        <button class="nav-item" onclick="startQuickAction('doc_analyze', 'Quyidagi shartnoma matnidagi huquqiy xatarlarni tahlil qilib bering:')">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            Hujjat tahlili
-        </button>
-    </div>
+        <nav class="nav">
+            <button class="nav-item active" data-view="home">
+                <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                AI-yordamchi
+            </button>
+            <button class="nav-item" data-view="court">
+                <svg viewBox="0 0 24 24"><path d="m14.5 12.5-8 8a2.12 2.12 0 0 1-3-3l8-8M16 16l6-6M8 8l6-6M9 7l8 8M21 11l-8-8"/></svg>
+                Sud simulyatori
+            </button>
+            <a class="nav-item" href="{{ route('court-hall') }}">
+                <svg viewBox="0 0 24 24"><path d="M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 2l8 5H4z"/></svg>
+                Virtual sud zali
+                <span class="nav-tag">Ball</span>
+            </a>
+            <button class="nav-item" data-view="news">
+                <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>
+                Huquqiy yangiliklar
+            </button>
+            <button class="nav-item" data-view="files">
+                <svg viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
+                Mening hujjatlarim
+                <span class="nav-count" id="filesCount" hidden></span>
+            </button>
+        </nav>
 
-    <input type="text" class="sidebar-search" placeholder="Chatlarni qidirish..." oninput="filterHistory(this.value)">
-    <div class="sidebar-label">CHATLAR</div>
-    <div class="history-list" id="sidebarHistory">
-        <div class="history-item" onclick="startQuickAction('general', 'O\'zbekiston mehnat qonunchiligidagi so\'nggi o\'zgarishlar haqida ma\'lumot bering')">
-            Qonunlar monitoringi
-            <span class="history-date">Hozirgina</span>
-        </div>
-        <div class="history-item" onclick="startQuickAction('general', 'Muddatli to\'lov (rassrochka) do\'konlari mijozdan penya undirishi qonuniymi?')">
-            Kredit va muddatli toʻlov nizosi
-            <span class="history-date">23.10.2026</span>
-        </div>
-        <div class="history-item" onclick="openView('court')">
-            Iqtisodiy sud: ISH № 104
-            <span class="history-date">23.10.2026</span>
-        </div>
-    </div>
-
-    <div class="sidebar-footer">
-        <div class="user-chip">
-            <div class="user-avatar">Y</div>
-            <div>
-                <div style="font-size:12.5px;">Yuridik Profil</div>
-                <div style="font-size:10.5px; color:var(--text-muted);">PRO / Oʻzbekcha</div>
-            </div>
-        </div>
-    </div>
-</aside>
-
-<!-- ==================== MAIN CONTENT AREA ==================== -->
-<div class="main-area">
-    <!-- TOP BAR -->
-    <header class="top-bar">
-        <div class="top-links">
-            <a onclick="openView('home')">AI-Yordamchi</a>
-            <a onclick="openView('court')">Sud Simulyatori</a>
-            <a onclick="openView('news')">Yangiliklar</a>
-            <a onclick="openView('files')">Fayllarim</a>
-        </div>
-        <div class="top-links">
-            <span>UZ Oʻzbekcha</span>
-            <a href="https://t.me/YuridikSimulyator_Bot" target="_blank" class="btn-tg">Telegram Bot</a>
-        </div>
-    </header>
-
-    <!-- 1. VIEW: AI-YORDAMCHI (SAFELAW LANDING + CHAT) -->
-    <section class="view-section active" id="view-home">
-        <div class="hero-center" id="heroBlock">
-            <div class="hero-logo">
-                <div class="brand-box">S</div>
-                <span>Yuridik AI</span>
-            </div>
-            <h1 class="hero-title">Oʻzbekiston huquqiy maʼlumotlari boʻyicha AI-yordamchi</h1>
-            <p class="hero-subtitle">Savol bering — AI Oʻzbekiston qonunlaridan kerakli moddalarni topib, 10–30 soniyada javob beradi. Kecha-kunduz ishlaydi.</p>
+        <div class="sidebar-section">
+            <div class="section-label">Tezkor boshlash</div>
+            <button class="shortcut" data-mode="doc_create" data-prompt="Muddatli toʻlov sharti bilan oldi-sotdi shartnomasi loyihasini tuzib bering.">📄 Shartnoma tuzish</button>
+            <button class="shortcut" data-mode="doc_create" data-prompt="Ish haqi oʻz vaqtida toʻlanmagani uchun sudga daʼvo arizasi namunasini tayyorlab bering.">⚖️ Daʼvo arizasi yozish</button>
+            <button class="shortcut" data-mode="doc_analyze" data-prompt="Quyidagi shartnoma matnidagi huquqiy xatarlarni tahlil qilib bering:">🔍 Hujjatni tahlil qilish</button>
+            <button class="shortcut" data-mode="general" data-prompt="Ish beruvchi meni ogohlantirmasdan ishdan boʻshatdi. Qanday huquqlarim bor?">💼 Mehnat huquqlari</button>
         </div>
 
-        <div class="chat-Log" id="mainChatLog"></div>
+        <a class="tg-card" href="https://t.me/YuridikSimulyator_Bot" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/></svg>
+            <span>
+                <strong>Telegram bot</strong>
+                <small>Sud simulyatori telefoningizda</small>
+            </span>
+        </a>
+    </aside>
+    <div class="backdrop" data-action="close-sidebar"></div>
 
-        <div class="hero-center" style="margin-top:0;">
-            <div class="prompt-box">
-                <div id="attachedFileBadge" style="display:none; font-size:12px; color:var(--accent-light); margin-bottom:8px; text-align:left;"></div>
-                <textarea id="aiInput" placeholder="Muammoingizni tasvirlab bering yoki huquqiy hujjat nomini yozing..."></textarea>
-                <div class="prompt-toolbar">
-                    <label class="file-upload-lbl">
-                        <input type="file" id="fileInput" accept=".txt,.doc,.docx,.html" style="display:none;" onchange="handleFileAttach(this)">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Fayl yuklang
-                    </label>
-                    <div class="toolbar-right">
-                        <button class="icon-btn" id="homeMicBtn" onclick="toggleVoice('home')" title="Ovozli xabar yuborish">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+    <main class="main">
+        <header class="topbar">
+            <button class="icon-btn menu-btn" data-action="open-sidebar" aria-label="Menyu">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <h1 class="topbar-title" id="viewTitle">AI-yordamchi</h1>
+            <a class="btn btn-ghost btn-sm" href="https://t.me/YuridikSimulyator_Bot" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/></svg>
+                <span class="hide-sm">Telegram bot</span>
+            </a>
+        </header>
+
+        {{-- AI-YORDAMCHI --}}
+        <section class="view active" id="view-home" data-title="AI-yordamchi">
+            <div class="chat-scroll" id="chatScroll">
+                <div class="welcome" id="welcome">
+                    <span class="logo logo-lg">
+                        <svg viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M3 7h18M3 7l-2.5 6a3 3 0 0 0 5 0zM21 7l-2.5 6a3 3 0 0 0 5 0z"/></svg>
+                    </span>
+                    <h2>Qanday huquqiy yordam kerak?</h2>
+                    <p>Savolingizni yozing yoki ovozli yuboring — AI Oʻzbekiston qonunlarining tegishli moddalariga tayanib javob beradi, hujjat tayyorlaydi yoki shartnomangizni tekshiradi.</p>
+                    <div class="suggestions">
+                        <button class="suggestion" data-mode="general" data-prompt="Muddatli toʻlov (rassrochka) doʻkoni kechikkan toʻlov uchun penya undirishi qonuniymi?">
+                            <strong>Huquqiy savol</strong>
+                            <span>Rassrochka uchun penya undirish qonuniymi?</span>
                         </button>
-                        <button class="send-pill-btn" onclick="sendAIChat()">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        <button class="suggestion" data-mode="doc_create" data-prompt="Talab qilish huquqini oʻtkazish (sessiya) shartnomasini tuzib bering.">
+                            <strong>Hujjat tayyorlash</strong>
+                            <span>Sessiya shartnomasini tuzib bering</span>
+                        </button>
+                        <button class="suggestion" data-mode="doc_analyze" data-prompt="Quyidagi shartnoma matnidagi huquqiy xatarlarni tahlil qilib bering:">
+                            <strong>Hujjat tahlili</strong>
+                            <span>Shartnomadagi xatarlarni toping</span>
+                        </button>
+                        <button class="suggestion" data-view="court">
+                            <strong>Sud simulyatori</strong>
+                            <span>7 xil sudda advokat boʻlib koʻring</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="messages" id="chatMessages"></div>
+            </div>
+
+            <div class="composer-wrap">
+                <div class="composer">
+                    <div class="composer-chips" id="composerChips"></div>
+                    <textarea id="aiInput" rows="1" placeholder="Savolingizni yozing…" aria-label="Savolingiz"></textarea>
+                    <div class="composer-bar">
+                        <label class="btn btn-ghost btn-sm" title="Matnli faylni biriktirish (.txt)">
+                            <input type="file" id="fileInput" accept=".txt,text/plain" hidden>
+                            <svg viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                            <span class="hide-sm">Fayl (.txt)</span>
+                        </label>
+                        <div class="composer-actions">
+                            <button class="icon-btn" id="homeMicBtn" data-action="voice" data-target="home" title="Ovozli savol" aria-label="Ovozli savol">
+                                <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg>
+                            </button>
+                            <button class="icon-btn icon-btn-primary" id="sendBtn" data-action="send-chat" title="Yuborish (Enter)" aria-label="Yuborish">
+                                <svg viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <p class="disclaimer">AI javoblari maʼlumot uchun. Muhim masalalarda advokat bilan maslahatlashing.</p>
+            </div>
+        </section>
+
+        {{-- SUD SIMULYATORI --}}
+        <section class="view" id="view-court" data-title="Sud simulyatori">
+            <div class="court-toolbar">
+                <div class="court-selects">
+                    <select class="select" id="courtSelect" aria-label="Sud turi">
+                        <option value="Fuqarolik sudi">Fuqarolik sudi</option>
+                        <option value="Jinoyat sudi">Jinoyat sudi</option>
+                        <option value="Ma'muriy sud">Maʼmuriy sud</option>
+                        <option value="Iqtisodiy sud">Iqtisodiy sud</option>
+                        <option value="Apellyatsiya shikoyati">Apellyatsiya instansiyasi</option>
+                        <option value="Kassatsiya shikoyati">Kassatsiya instansiyasi</option>
+                        <option value="Hakamlik sudi">Hakamlik sudi</option>
+                    </select>
+                    <select class="select" id="levelSelect" aria-label="Daraja">
+                        <option value="maktab">Maktab oʻquvchisi</option>
+                        <option value="talaba" selected>Talaba</option>
+                        <option value="yurist">Amaliyotchi yurist</option>
+                        <option value="ekspert">Sudya va ekspert</option>
+                    </select>
+                </div>
+                <div class="court-actions">
+                    <button class="btn btn-ghost btn-sm" data-action="new-case">✨ Yangi ish</button>
+                    <button class="btn btn-ghost btn-sm" data-action="hint">💡 Maslahat</button>
+                    <button class="btn btn-primary btn-sm" data-action="verdict">🏁 Hukm</button>
+                </div>
+            </div>
+
+            <div class="court-layout">
+                <aside class="case-panel">
+                    <div class="section-label">Koʻrilayotgan ish</div>
+                    <h3 class="case-title" id="caseTitle"></h3>
+                    <p class="case-desc" id="caseDesc"></p>
+                    <div class="section-label">Dalillar <span class="label-hint">— bosib nutqqa qoʻshing</span></div>
+                    <div class="evidence-list" id="evidenceList"></div>
+                </aside>
+
+                <div class="court-chat">
+                    <div class="court-messages" id="courtMessages"></div>
+                    <div class="court-input">
+                        <button class="icon-btn" id="courtMicBtn" data-action="voice" data-target="court" title="Ovozli nutq" aria-label="Ovozli nutq">
+                            <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg>
+                        </button>
+                        <textarea id="courtInput" rows="1" placeholder="Advokat sifatida nutqingizni yozing…" aria-label="Nutqingiz"></textarea>
+                        <button class="icon-btn icon-btn-primary" data-action="send-court" title="Yuborish (Enter)" aria-label="Yuborish">
+                            <svg viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></svg>
                         </button>
                     </div>
                 </div>
             </div>
+        </section>
 
-            <div class="quick-pills">
-                <button class="q-pill" onclick="startQuickAction('doc_analyze', 'Ushbu shartnoma matnini huquqiy tahlil qilib, xatarlarini ko\'rsating:')">🔍 Hujjat tahlili</button>
-                <button class="q-pill" onclick="startQuickAction('doc_create', 'Mengaa talab qilish huquqini o\'tkazish (sessiya) shartnomasini tuzib bering')">📄 Hujjat tayyorlash</button>
-                <button class="q-pill" onclick="openView('court')">⚖️ Sud simulyatori (7 sud)</button>
-                <button class="q-pill" onclick="openView('news')">📋 Qonunlar monitoringi</button>
-            </div>
-        </div>
-    </section>
-
-    <!-- 2. VIEW: MENING FAYLLARIM -->
-    <section class="view-section" id="view-files">
-        <h2 class="page-title">Mening fayllarim</h2>
-        <div class="page-count" id="filesCountText">Jami: 4</div>
-
-        <div class="search-row">
-            <input type="text" class="main-search" placeholder="Fayllarni qidirish..." oninput="renderFilesGrid(this.value)">
-        </div>
-
-        <div class="filter-tabs">
-            <button class="f-tab active">Barchasi</button>
-            <button class="f-tab" onclick="startQuickAction('doc_create', 'Yangi ikki tomonlama shartnoma tuzib bering')">+ Yangi hujjat yaratish (AI)</button>
-        </div>
-
-        <div class="files-grid" id="filesGrid"></div>
-    </section>
-
-    <!-- 3. VIEW: HUQUQIY YANGILIKLAR -->
-    <section class="view-section" id="view-news">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-            <div>
-                <h2 class="page-title">Huquqiy yangiliklar va Qonunchilik monitoringi</h2>
-                <div class="page-count" style="margin-bottom:0;">Oʻzbekiston Respublikasi qonunchiligidagi soʻnggi oʻzgarishlar va AI sharhlari</div>
-            </div>
-            <button class="btn-sm primary" onclick="refreshLegalNews()">🔄 AI orqali yangilash</button>
-        </div>
-        <div class="news-grid" id="newsGrid"></div>
-    </section>
-
-    <!-- 4. VIEW: SUD SIMULYATORI (TARTIBLI VA PROFESSIONAL) -->
-    <section class="view-section" id="view-court" style="padding: 20px 28px;">
-        <div class="sim-header">
-            <div class="sim-selects">
-                <select class="clean-select" id="levelSelect" onchange="changeSimConfig()">
-                    <option value="maktab">Daraja: Maktab oʻquvchilari (Boshlangʻich)</option>
-                    <option value="talaba" selected>Daraja: Talabalar (Akademik)</option>
-                    <option value="yurist">Daraja: Amaliyotchi yuristlar (PRO)</option>
-                    <option value="ekspert">Daraja: Sudya va Ekspertlar (Oliy)</option>
-                </select>
-                <select class="clean-select" id="courtSelect" onchange="changeSimConfig()">
-                    <option value="Fuqarolik sudi">Sud: Fuqarolik ishlari boʻyicha sud</option>
-                    <option value="Jinoyat sudi">Sud: Jinoyat ishlari boʻyicha sud</option>
-                    <option value="Ma'muriy sud">Sud: Maʼmuriy sud</option>
-                    <option value="Iqtisodiy sud">Sud: Iqtisodiy sud</option>
-                    <option value="Apellyatsiya shikoyati">Sud: Apellyatsiya instansiyasi</option>
-                    <option value="Kassatsiya shikoyati">Sud: Kassatsiya instansiyasi</option>
-                    <option value="Hakamlik sudi">Sud: Hakamlik sudi</option>
-                </select>
-            </div>
-            <div style="display:flex; gap:8px;">
-                <button class="btn-sm" onclick="generateNewSimCase()">✨ Yangi ish (AI)</button>
-                <button class="btn-sm" onclick="getSimHint()">💡 Huquqiy maslahat</button>
-                <button class="btn-sm primary" onclick="getSimVerdict()">🏁 Yakuniy Hukm</button>
-            </div>
-        </div>
-
-        <div class="sim-layout">
-            <!-- CHAPDA ISH FABULASI VA DALILLAR -->
-            <div class="sim-case-panel">
-                <div>
-                    <div class="sidebar-label" style="padding:0; margin-bottom:6px;">KOʻRILAYOTGAN ISH</div>
-                    <h4 id="simCaseTitle" style="font-size:14.5px; color:#fff; margin-bottom:8px;"></h4>
-                    <p id="simCaseDesc" style="font-size:13px; color:var(--text-secondary); line-height:1.55;"></p>
+        {{-- HUQUQIY YANGILIKLAR --}}
+        <section class="view" id="view-news" data-title="Huquqiy yangiliklar">
+            <div class="page">
+                <div class="page-head">
+                    <div>
+                        <h2>Huquqiy yangiliklar</h2>
+                        <p>Qonunchilikdagi oʻzgarishlar haqida AI tayyorlagan qisqa sharhlar. Rasmiy matnni <a href="https://lex.uz" target="_blank" rel="noopener">lex.uz</a> da tekshiring.</p>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" data-action="refresh-news">🔄 Yangilash</button>
                 </div>
-                <div>
-                    <div class="sidebar-label" style="padding:0; margin-bottom:8px;">ASHYOVIY DALILLAR (Bosib nutqqa qoʻshing)</div>
-                    <div id="simEvidences" style="display:flex; flex-direction:column; gap:8px;"></div>
+                <div class="card-grid" id="newsGrid"></div>
+            </div>
+        </section>
+
+        {{-- MENING HUJJATLARIM --}}
+        <section class="view" id="view-files" data-title="Mening hujjatlarim">
+            <div class="page">
+                <div class="page-head">
+                    <div>
+                        <h2>Mening hujjatlarim</h2>
+                        <p>AI javoblaridan saqlagan hujjatlaringiz. Ular faqat shu brauzerda saqlanadi.</p>
+                    </div>
+                    <button class="btn btn-primary btn-sm" data-mode="doc_create" data-prompt="Quyidagi maʼlumotlar asosida hujjat tuzib bering: ">+ Yangi hujjat</button>
+                </div>
+                <input type="search" class="input" id="filesSearch" placeholder="Hujjatlarni qidirish…" aria-label="Hujjatlarni qidirish">
+                <div class="card-grid" id="filesGrid"></div>
+                <div class="empty" id="filesEmpty" hidden>
+                    <strong>Hozircha hujjat yoʻq</strong>
+                    <span>AI javobi ostidagi «Saqlash» tugmasini bosing — hujjat shu yerda paydo boʻladi.</span>
                 </div>
             </div>
-
-            <!-- O'NGDA SUD MUZOKARASI -->
-            <div class="sim-chat-box">
-                <div class="sim-messages" id="simMessages"></div>
-                <div style="padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:10px; align-items:center; background:var(--bg-input);">
-                    <button class="icon-btn" id="courtMicBtn" onclick="toggleVoice('court')" title="Ovozli nutq so'zlash">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
-                    </button>
-                    <input type="text" id="simInput" class="main-search" style="margin:0;" placeholder="Advokat sifatida huquqiy pozitsiyangizni yozing yoki mikrofonda gapiring..." onkeydown="if(event.key==='Enter') sendSimTurn()">
-                    <button class="btn-sm primary" style="height:40px; padding:0 18px;" onclick="sendSimTurn()">Yuborish</button>
-                </div>
-            </div>
-        </div>
-    </section>
+        </section>
+    </main>
 </div>
+
+<div class="toast" id="toast" role="status" hidden></div>
 
 @php
     $apiRoutes = [

@@ -50,7 +50,8 @@ class LegalAssistant
     {
         $history = Str::substr($history, -self::HISTORY_LENGTH);
 
-        $prompt = "Siz O'zbekiston Respublikasi huquqiy ma'lumotlari bo'yicha 'Yuridik Simulyator & SafeLaw' AI-yordamchisisiz.\n"
+        $prompt = "Siz «Yuridik Simulyator» platformasining O'zbekiston Respublikasi qonunchiligi bo'yicha AI-yordamchisisiz. "
+            ."O'zingizni faqat shu nom bilan tanishtiring, boshqa brend yoki xizmat nomlarini ishlatmang.\n"
             .'VAZIFA: '.(self::MODE_INSTRUCTIONS[$mode] ?? self::MODE_INSTRUCTIONS['general'])."\n\n"
             .($history !== '' ? "OLDINGI SUHBAT:\n".$history."\n\n" : '')
             .($attachmentText !== '' ? "BIRIKTIRILGAN HUJJAT MATNI:\n".Str::substr($attachmentText, 0, self::ATTACHMENT_LENGTH)."\n\n" : '')

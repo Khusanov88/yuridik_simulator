@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Yuridik Simulyator & AI Huquqiy Platforma | credinvest.uz</title>
+    <title>Virtual sud zali — Yuridik Simulyator</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c6cff'/%3E%3Cg fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 7v18M11 25h10M8 11h16M8 11l-3 7a3.5 3.5 0 0 0 6 0zM24 11l-3 7a3.5 3.5 0 0 0 6 0z'/%3E%3C/g%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <link href="{{ asset('css/court-hall.css') }}" rel="stylesheet">
 </head>
@@ -12,7 +13,7 @@
 
 <!-- TOP NAVBAR -->
 <nav class="navbar">
-    <a href="#" class="brand">
+    <a href="{{ route('home') }}" class="brand" title="Bosh sahifaga qaytish">
         <div class="brand-icon">⚖️</div>
         <div>
             <span class="brand-title">YURIDIK SIMULYATOR</span>
