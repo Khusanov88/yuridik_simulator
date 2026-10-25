@@ -6,6 +6,7 @@ use App\Services\GeminiClient;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 #[Signature('gemini:check')]
 #[Description('Check that the configured Gemini API key works and explain why it does not')]
@@ -16,6 +17,12 @@ class CheckGemini extends Command
      */
     public function handle(GeminiClient $gemini): int
     {
+        $key = (string) config('services.gemini.key');
+
+        if ($key !== '') {
+            $this->line('  Ishlatilayotgan kalit: '.Str::mask($key, '*', 6, -4));
+        }
+
         $problem = $gemini->diagnose();
 
         if ($problem !== null) {

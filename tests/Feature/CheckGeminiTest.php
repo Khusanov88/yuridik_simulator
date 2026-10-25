@@ -37,7 +37,7 @@ it('shows the connection error when Gemini cannot be reached', function () {
 });
 
 it('confirms Gemini works when a reply is generated', function () {
-    config(['services.gemini.key' => 'gemini-key']);
+    config(['services.gemini.key' => 'AIzaTestKey1234']);
     Http::preventStrayRequests();
     Http::fake([
         GEMINI_MODELS_URL => Http::response(['models' => [
@@ -47,6 +47,7 @@ it('confirms Gemini works when a reply is generated', function () {
     ]);
 
     $this->artisan('gemini:check')
+        ->expectsOutputToContain('Ishlatilayotgan kalit: AIzaTe*****1234')
         ->expectsOutputToContain('Gemini ishlayapti. Javob: Salom')
         ->assertSuccessful();
 });
