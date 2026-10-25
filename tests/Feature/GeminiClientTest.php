@@ -42,7 +42,7 @@ it('falls back to the default models when the model list is unavailable', functi
     Http::preventStrayRequests();
     Http::fake([
         'generativelanguage.googleapis.com/v1beta/models' => Http::failedConnection(),
-        'generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent' => geminiTextResponse('Javob'),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => geminiTextResponse('Javob'),
     ]);
 
     expect(app(GeminiClient::class)->generate('Savol'))->toBe('Javob');
@@ -64,7 +64,7 @@ it('sends the API key in a header instead of the URL', function () {
     Http::preventStrayRequests();
     Http::fake([
         'generativelanguage.googleapis.com/v1beta/models' => Http::failedConnection(),
-        'generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent' => geminiTextResponse('Javob'),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => geminiTextResponse('Javob'),
     ]);
 
     app(GeminiClient::class)->generate('Savol');
@@ -78,8 +78,58 @@ it('replaces invalid UTF-8 in the prompt instead of failing', function () {
     Http::preventStrayRequests();
     Http::fake([
         'generativelanguage.googleapis.com/v1beta/models' => Http::failedConnection(),
-        'generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent' => geminiTextResponse('Javob'),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => geminiTextResponse('Javob'),
     ]);
 
     expect(app(GeminiClient::class)->generate("Hujjat \xB1 matni"))->toBe('Javob');
+});
+
+it('skips a retired model without using up an attempt and remembers it', function () {
+    config(['services.gemini.max_model_attempts' => 1]);
+    Http::preventStrayRequests();
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/models' => Http::response(['models' => [
+            ['name' => 'models/gemini-2.5-flash-lite', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-3.5-flash-lite', 'supportedGenerationMethods' => ['generateContent']],
+        ]]),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent' => Http::response(['error' => ['message' => 'This model is no longer available to new users.']], 404),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent' => geminiTextResponse('Javob'),
+    ]);
+    $gemini = app(GeminiClient::class);
+
+    expect($gemini->generate('Birinchi savol'))->toBe('Javob');
+    expect($gemini->generate('Ikkinchi savol'))->toBe('Javob');
+
+    Http::assertSentCount(4);
+});
+
+it('stops trying other models when the key is denied access', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/models' => Http::response(['models' => [
+            ['name' => 'models/gemini-flash-lite-latest', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-flash-latest', 'supportedGenerationMethods' => ['generateContent']],
+        ]]),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent' => Http::response(['error' => ['message' => 'Your project has been denied access.']], 403),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent' => geminiTextResponse('Javob'),
+    ]);
+    $gemini = app(GeminiClient::class);
+
+    expect($gemini->generate('Savol'))->toBeNull();
+    expect($gemini->lastError())->toBe('models/gemini-flash-lite-latest (HTTP 403): Your project has been denied access.');
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'gemini-flash-latest:generateContent'));
+});
+
+it('tries preview models only after stable ones', function () {
+    config(['services.gemini.max_model_attempts' => 1]);
+    Http::preventStrayRequests();
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/models' => Http::response(['models' => [
+            ['name' => 'models/gemini-3.1-flash-lite-preview', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-flash-latest', 'supportedGenerationMethods' => ['generateContent']],
+        ]]),
+        'generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent' => geminiTextResponse('Javob'),
+    ]);
+
+    expect(app(GeminiClient::class)->generate('Savol'))->toBe('Javob');
 });

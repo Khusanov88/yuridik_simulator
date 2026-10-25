@@ -27,7 +27,8 @@ class CheckGemini extends Command
         $reply = $gemini->generate("Faqat bitta so'z bilan javob bering: Salom");
 
         if ($reply === null) {
-            $this->components->error("Model ro'yxati olindi, lekin javob yaratilmadi. Sababi storage/logs/laravel.log da yozilgan.");
+            $this->components->error("Model ro'yxati olindi, lekin javob yaratilmadi.");
+            $this->line('  Sababi: '.($gemini->lastError() ?? "noma'lum, storage/logs/laravel.log ni qarang"));
 
             return self::FAILURE;
         }

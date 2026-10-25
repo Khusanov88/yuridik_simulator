@@ -62,7 +62,9 @@ it('logs why a generation attempt failed', function () {
         GEMINI_MODELS_URL.'/gemini-test-flash:generateContent' => Http::response(['error' => ['message' => 'Quota exceeded']], 429),
     ]);
 
-    $this->artisan('gemini:check')->assertFailed();
+    $this->artisan('gemini:check')
+        ->expectsOutputToContain('Sababi: models/gemini-test-flash (HTTP 429): Quota exceeded')
+        ->assertFailed();
 
     Log::shouldHaveReceived('warning')->with('Gemini returned no text.', ['model' => 'models/gemini-test-flash', 'status' => 429, 'error' => 'Quota exceeded']);
 });

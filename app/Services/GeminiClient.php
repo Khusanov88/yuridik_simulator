@@ -16,15 +16,26 @@ class GeminiClient
 
     private const string MODELS_CACHE_KEY = 'gemini:models';
 
+    private const string RETIRED_MODELS_CACHE_KEY = 'gemini:retired-models';
+
     /**
      * Models tried when the model list cannot be fetched.
      *
      * @var list<string>
      */
     private const array FALLBACK_MODELS = [
-        'models/gemini-2.5-flash',
-        'models/gemini-2.0-flash',
+        'models/gemini-flash-lite-latest',
+        'models/gemini-flash-latest',
     ];
+
+    /**
+     * Statuses caused by the key or the request itself, so every other model would fail the same way.
+     *
+     * @var list<int>
+     */
+    private const array FATAL_STATUSES = [400, 401, 403];
+
+    private ?string $lastError = null;
 
     /**
      * Generate a reply, falling back to the next available model on failure.
@@ -49,13 +60,19 @@ class GeminiClient
             ],
         ];
 
-        $models = array_slice($this->availableModels(), 0, max(1, (int) config('services.gemini.max_model_attempts')));
+        $this->lastError = null;
+        $attemptsLeft = max(1, (int) config('services.gemini.max_model_attempts'));
 
-        foreach ($models as $model) {
+        foreach ($this->availableModels() as $model) {
             try {
                 $response = $this->request()->timeout(25)->post("{$model}:generateContent", $payload);
             } catch (ConnectionException $exception) {
+                $this->lastError = "{$model}: ".$exception->getMessage();
                 Log::warning('Gemini request could not connect.', ['model' => $model, 'error' => $exception->getMessage()]);
+
+                if (--$attemptsLeft === 0) {
+                    break;
+                }
 
                 continue;
             }
@@ -66,10 +83,30 @@ class GeminiClient
                 return trim(str_replace('*', '', $reply));
             }
 
+            $this->lastError = "{$model} (HTTP {$response->status()}): ".$this->errorMessage($response);
             Log::warning('Gemini returned no text.', ['model' => $model, 'status' => $response->status(), 'error' => $this->errorMessage($response)]);
+
+            // A retired model fails instantly, so it does not use up an attempt and is skipped from now on.
+            if ($response->notFound()) {
+                $this->retireModel($model);
+
+                continue;
+            }
+
+            if (in_array($response->status(), self::FATAL_STATUSES, true) || --$attemptsLeft === 0) {
+                break;
+            }
         }
 
         return null;
+    }
+
+    /**
+     * Why the last generate() call returned null.
+     */
+    public function lastError(): ?string
+    {
+        return $this->lastError;
     }
 
     /**
@@ -100,11 +137,28 @@ class GeminiClient
     }
 
     /**
-     * Text-capable Gemini models, fastest ("lite", then "flash") first.
+     * Text-capable Gemini models, fastest ("lite", then "flash") first and previews last.
      *
      * @return list<string>
      */
     private function availableModels(): array
+    {
+        $retiredModels = Cache::get(self::RETIRED_MODELS_CACHE_KEY, []);
+
+        return array_values(array_diff($this->listedModels(), $retiredModels));
+    }
+
+    private function retireModel(string $model): void
+    {
+        $retiredModels = Cache::get(self::RETIRED_MODELS_CACHE_KEY, []);
+
+        Cache::put(self::RETIRED_MODELS_CACHE_KEY, array_values(array_unique([...$retiredModels, $model])), now()->addDay());
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function listedModels(): array
     {
         $cachedModels = Cache::get(self::MODELS_CACHE_KEY);
 
@@ -129,7 +183,7 @@ class GeminiClient
                 && Str::contains($model['name'] ?? '', 'gemini')
                 && Str::contains($model['name'], ['lite', 'flash'])
                 && ! Str::contains($model['name'], ['tts', 'image', 'embedding']))
-            ->sortBy(fn (array $model): int => Str::contains($model['name'], 'lite') ? 0 : 1)
+            ->sortBy(fn (array $model): int => (Str::contains($model['name'], 'preview') ? 2 : 0) + (Str::contains($model['name'], 'lite') ? 0 : 1))
             ->pluck('name')
             ->values()
             ->all();
